@@ -1,0 +1,7 @@
+# Local benchmark runs and potentially sensitive logs
+.runs/
+**/__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
