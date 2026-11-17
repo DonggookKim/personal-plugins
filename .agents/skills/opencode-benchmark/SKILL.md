@@ -5,7 +5,7 @@ description: Compare configured OpenCode implementation models on identical isol
 
 # OpenCode model benchmark
 
-Use the shared `scripts/opencode_delegate.py` runner through `scripts/benchmark.py`; do not add another OpenCode execution path. For ordinary project work use the sibling `opencode-delegate` Skill.
+Use the installed upstream `$opencode-delegate` Skill and its `scripts/run_worker.py` through `scripts/benchmark.py`; do not add another OpenCode execution engine. For ordinary project work invoke `$opencode-delegate` directly.
 
 ## Responsibility boundary
 
@@ -22,7 +22,7 @@ Use the shared `scripts/opencode_delegate.py` runner through `scripts/benchmark.
 
 ## Paid/external execution
 
-Run `execute` only after explicit authorization for the relevant provider/model. `execute` uses the common delegation wrapper, writes a fresh numbered log attempt, and never overwrites the first result. A timeout is not a spend cap; account-level limits remain required.
+Run `execute` only after explicit authorization for the relevant provider/model. `execute` calls the installed upstream runner, writes a fresh numbered benchmark log attempt, and never overwrites the first result. A timeout is not a spend cap; account-level limits remain required.
 
 After an attempt, run `evaluate`, inspect `result.json`, the actual changed files, worker tests, independent tests, and the full code. Record Codex review findings separately. A dry-run, prepared workspace, provider error, or worker-authored test claim is not a successful model result.
 
