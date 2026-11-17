@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
 import stat
 import subprocess
 import sys
@@ -83,6 +84,40 @@ class DelegateRunnerTests(unittest.TestCase):
             payload = json.loads(result.stdout)
             self.assertTrue(payload["dry_run"])
             self.assertEqual(payload["command"][-1], "<structured task prompt>")
+
+    def test_records_missing_opencode_as_preflight_failure(self) -> None:
+        with temporary_directory() as temporary:
+            root = Path(temporary)
+            work = root / "work"
+            work.mkdir()
+            task = root / "task.json"
+            write_task(task)
+            output = root / "attempt-001"
+            env = os.environ.copy()
+            git_binary = shutil.which("git")
+            self.assertIsNotNone(git_binary)
+            env["PATH"] = str(Path(git_binary).parent)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(RUNNER),
+                    "--cwd",
+                    str(work),
+                    "--task-file",
+                    str(task),
+                    "--output-dir",
+                    str(output),
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 127)
+            payload = json.loads((output / "result.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["phase"], "preflight")
+            self.assertEqual(payload["changed_files"], [])
+            self.assertIn("not available", payload["unresolved_issues"][0])
 
     def test_records_changes_tests_session_and_usage(self) -> None:
         with temporary_directory() as temporary:

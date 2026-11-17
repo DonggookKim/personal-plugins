@@ -252,6 +252,60 @@ def run_tests(
     return results
 
 
+def record_preflight_failure(
+    output_dir: Path,
+    cwd: Path,
+    model: str,
+    agent: str,
+    exit_code: int,
+    message: str,
+    baseline_git: dict[str, Any] | None,
+) -> int:
+    output_dir.mkdir(parents=True)
+    stdout_path = output_dir / "opencode.stdout.jsonl"
+    stderr_path = output_dir / "opencode.stderr.log"
+    stdout_path.write_text("", encoding="utf-8")
+    stderr_path.write_text(message + "\n", encoding="utf-8")
+    result = {
+        "schema_version": 1,
+        "status": "failed",
+        "phase": "preflight",
+        "started_at": None,
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+        "elapsed_seconds": 0,
+        "cwd": str(cwd),
+        "model": model,
+        "agent": agent,
+        "worker_exit_code": exit_code,
+        "timed_out": False,
+        "changed_files": [],
+        "unauthorized_changes": [],
+        "git_head_changed": False,
+        "git_before": baseline_git,
+        "git_after": baseline_git,
+        "diff_path": None,
+        "tests": [],
+        "usage": {
+            "parsed_json_events": 0,
+            "session_ids": [],
+            "observed_cost_total": None,
+            "observed_tokens": {},
+            "source": "OpenCode was not started",
+        },
+        "unresolved_issues": [message],
+        "logs": {
+            "stdout": str(stdout_path),
+            "stderr": str(stderr_path),
+            "result": str(output_dir / "result.json"),
+        },
+    }
+    (output_dir / "result.json").write_text(
+        json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return exit_code
+
+
 def main() -> int:
     args = parse_args()
     cwd = Path(args.cwd).expanduser().resolve()
@@ -307,10 +361,6 @@ def main() -> int:
     if not args.output_dir:
         print("error: --output-dir is required unless --dry-run is used", file=sys.stderr)
         return 2
-    if resolved_binary is None:
-        print("error: opencode is not available on PATH; use --opencode-bin", file=sys.stderr)
-        return 127
-
     output_dir = Path(args.output_dir).expanduser().resolve()
     if output_dir.exists():
         print(f"error: output directory already exists: {output_dir}", file=sys.stderr)
@@ -323,9 +373,26 @@ def main() -> int:
         print("error: --output-dir must be outside the worker directory", file=sys.stderr)
         return 2
     baseline_git = git_state(cwd)
+    if resolved_binary is None:
+        return record_preflight_failure(
+            output_dir,
+            cwd,
+            args.model,
+            args.agent,
+            127,
+            "opencode is not available on PATH; use --opencode-bin",
+            baseline_git,
+        )
     if baseline_git and baseline_git["status"] and not args.allow_dirty:
-        print("error: Git worktree is dirty; use an isolated worktree or --allow-dirty", file=sys.stderr)
-        return 2
+        return record_preflight_failure(
+            output_dir,
+            cwd,
+            args.model,
+            args.agent,
+            2,
+            "Git worktree is dirty; use an isolated worktree or --allow-dirty",
+            baseline_git,
+        )
 
     output_dir.mkdir(parents=True)
     before = file_snapshot(cwd)
