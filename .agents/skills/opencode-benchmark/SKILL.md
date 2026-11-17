@@ -1,41 +1,41 @@
 ---
 name: opencode-benchmark
-description: Benchmark OpenCode implementation workers through identical isolated score-detector tasks; Codex prepares specifications, delegates edits, and independently reviews results.
+description: Compare configured OpenCode implementation models on identical isolated score-detector tasks while Codex independently evaluates and reviews each result. Use for this repository's two-stage OpenCode model benchmark, not ordinary project implementation.
 ---
 
-# OpenCode implementation benchmark (PoC)
+# OpenCode model benchmark
 
-## Trigger
-
-Use when the user explicitly requests **OpenCode model comparison / benchmark** or to validate a Codex → OpenCode delegation workflow. Do not invoke automatically for ordinary implementation work until the PoC is approved.
+Use the shared `scripts/opencode_delegate.py` runner through `scripts/benchmark.py`; do not add another OpenCode execution path. For ordinary project work use the sibling `opencode-delegate` Skill.
 
 ## Responsibility boundary
 
-- **Codex:** requirements, model-independent task spec, task split, orchestration, independent tests, diff review, and result assessment.
-- **OpenCode:** edits the isolated worker's \`score_detector.py\`, tests its own changes, and reports limitations.
-- **User:** decides whether to incur API cost and whether to expand the workflow to MKM.
+- Codex owns the common task, isolation, independent evaluator, diff review, and result assessment.
+- OpenCode edits only its prepared worker directory and runs worker-owned tests.
+- The user authorizes provider calls/cost and decides final model adoption.
 
-## Execution (no API calls unless requested)
+## No-cost preparation
 
-1. Read \`README.md\`, \`benchmarks/models.json\`, and \`benchmarks/score-detector/README.md\`.
-2. Inspect \`opencode --version\`, \`opencode run --help\`, available models, and provider authentication **without printing secrets**.
-3. Prefer \`python scripts/benchmark.py prepare --case stage1 --model <alias>\` to create isolated input. Repeat for the three aliases.
-4. **Only on explicit user request** run \`python scripts/benchmark.py execute --case stage1 --model <alias>\`. Capture the OpenCode event log. Do not claim that a dry run is a model result.
-5. Run \`python scripts/benchmark.py evaluate --case stage1 --model <alias>\`. Evaluate stage2 identically with fresh folders.
-6. Compare tests, diff scope, failed requirements, rework attempts, token usage and OpenRouter **billed cost** separately. For model quality, do not count API errors/quotas as code bugs; report them as availability failures.
-7. Codex may ask for a bounded fix, but retain the first-attempt score separately from final-after-rework score. Never let a worker rewrite the independent evaluator.
-8. Report model alias + resolved provider/model ID, model/provider version, test suite version, base file hash, start time, success/failure, counts, attempts, cost source, and privacy caveats.
+1. Read `README.md`, `benchmarks/models.json`, and `benchmarks/score-detector/README.md`.
+2. Confirm Python 3.11+, Git, `opencode --version`, `opencode run --help`, provider authentication, and `opencode models` without printing secrets. If Codex and OpenCode run in different Windows/WSL environments, stop actual execution until both can access the same worker path.
+3. For each alias, run `python scripts/benchmark.py prepare --case <stage> --model <alias>` and then `dry-run`. These actions must not call a model.
+4. Confirm every manifest has the intended model ID and identical hashes for the same stage.
 
-## Fair comparison
+## Paid/external execution
 
-- Same prompt, starter, Python version, tool policy, max runtime, and independent tests.
-- Models start from the same source state; no shared context or previous model output.
-- If a model cannot call shell/edit tools, record an integration failure; do not silently substitute another model.
-- Task 2 (extension) starts from the **common provided baseline**, not each model's Task 1 implementation. This isolates modification ability from errors in task 1.
-- Keep worker folders separate from the evaluator. The repository's public evaluator is **not secret**; isolation prevents accidental exposure in the model's working directory.
-- API spend cap must be set at the provider/account level; local timeout is not a financial limit.
-- No push, merge, credential export, confidential inputs or changes to MKM during this PoC.
+Run `execute` only after explicit authorization for the relevant provider/model. `execute` uses the common delegation wrapper, writes a fresh numbered log attempt, and never overwrites the first result. A timeout is not a spend cap; account-level limits remain required.
 
-## Follow-up
+After an attempt, run `evaluate`, inspect `result.json`, the actual changed files, worker tests, independent tests, and the full code. Record Codex review findings separately. A dry-run, prepared workspace, provider error, or worker-authored test claim is not a successful model result.
 
-If benchmark passes, open a separate implementation PR for **bounded commit delegation** and add robust worktree sandboxing, retry/session lifecycle, and cost telemetry. This Skill itself is intentionally small and does not force implementation delegation yet.
+## Fair comparison invariants
+
+- Same stage prompt, starter hash, Python version, permissions, timeout, and independent tests.
+- Separate worker directories and logs for each model; do not give a worker another model's output.
+- Stage 2 always starts from the common fixture, not a model's Stage 1 implementation.
+- The evaluator remains outside the worker directory. It is public, not cryptographically hidden.
+- Preserve first-attempt and post-rework scores separately. Classify quota, auth, unavailable model, and missing tool support as integration/availability failures rather than code defects.
+- Compare provider-billed cost separately from best-effort OpenCode event usage.
+- No confidential input, commit, push, merge, or MKM modification.
+
+## Report
+
+For every attempt record stage, alias, resolved provider/model ID, manifest hashes, environment versions, timestamps, worker exit/timeout, changed files, scope violations, worker tests, independent tests, Codex review, retry number, session IDs, usage fields, billed-cost source, and privacy caveats. State clearly which models were merely prepared and which were actually called.

@@ -3,18 +3,24 @@
     "label": "DeepSeek V4.1 Flash 1017",
     "opencode_model": "openrouter/deepseek/deepseek-v4.1-flash-1017",
     "model_page": "https://openrouter.ai/deepseek/deepseek-v4.1-flash-1017",
-    "billing": "paid"
+    "billing": "paid; check live provider price before execution",
+    "tool_calling": "advertised by OpenRouter catalog; local smoke test pending",
+    "verified_at": "2026-11-17"
   },
   "glm": {
     "label": "GLM-5.3 Flash",
     "opencode_model": "openrouter/z-ai/glm-5.3-flash",
     "model_page": "https://openrouter.ai/z-ai/glm-5.3-flash",
-    "billing": "paid"
+    "billing": "paid; check live provider price before execution",
+    "tool_calling": "advertised by OpenRouter catalog; local smoke test pending",
+    "verified_at": "2026-11-17"
   },
   "nemotron": {
     "label": "NVIDIA Nemotron 3 Ultra (free)",
     "opencode_model": "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     "model_page": "https://openrouter.ai/nvidia/nemotron-3-ultra-550b-a55b:free",
-    "billing": "free-tier; rate-limited; policy-check-required"
+    "billing": "free-tier; rate-limited; policy-check-required",
+    "tool_calling": "advertised by OpenRouter catalog; local smoke test pending",
+    "verified_at": "2026-11-17"
   }
 }
