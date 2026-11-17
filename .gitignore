@@ -1,5 +1,6 @@
 # Local benchmark runs and potentially sensitive logs
 .runs/
+.opencode-runs/
 **/__pycache__/
 *.py[cod]
 .env
