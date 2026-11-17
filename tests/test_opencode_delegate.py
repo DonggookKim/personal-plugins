@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import stat
 import subprocess
@@ -11,6 +12,30 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / "scripts" / "opencode_delegate.py"
+TEST_TEMP_ROOT = os.environ.get("CODEX_TEST_TMPDIR")
+
+
+def temporary_directory() -> tempfile.TemporaryDirectory[str]:
+    return tempfile.TemporaryDirectory(dir=TEST_TEMP_ROOT)
+
+
+def write_fake_opencode(root: Path, source: str) -> Path:
+    implementation = root / "fake_opencode_impl.py"
+    implementation.write_text(source, encoding="utf-8")
+    if os.name == "nt":
+        launcher = root / "fake-opencode.cmd"
+        launcher.write_text(
+            f'@"{sys.executable}" "{implementation}" %*\r\n', encoding="utf-8"
+        )
+    else:
+        launcher = root / "fake-opencode"
+        launcher.write_text(
+            f'#!{sys.executable}\nexec(compile(open({str(implementation)!r}, "rb").read(), '
+            f'{str(implementation)!r}, "exec"))\n',
+            encoding="utf-8",
+        )
+        launcher.chmod(launcher.stat().st_mode | stat.S_IXUSR)
+    return launcher
 
 
 def write_task(path: Path, allowed_paths: list[str] | None = None) -> None:
@@ -34,7 +59,7 @@ def write_task(path: Path, allowed_paths: list[str] | None = None) -> None:
 
 class DelegateRunnerTests(unittest.TestCase):
     def test_dry_run_does_not_require_installed_opencode(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/mnt/d/CodexTemp/WSL") as temporary:
+        with temporary_directory() as temporary:
             root = Path(temporary)
             task = root / "task.json"
             write_task(task)
@@ -60,22 +85,21 @@ class DelegateRunnerTests(unittest.TestCase):
             self.assertEqual(payload["command"][-1], "<structured task prompt>")
 
     def test_records_changes_tests_session_and_usage(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/mnt/d/CodexTemp/WSL") as temporary:
+        with temporary_directory() as temporary:
             root = Path(temporary)
             work = root / "work"
             work.mkdir()
             (work / "target.txt").write_text("before", encoding="utf-8")
             task = root / "task.json"
             write_task(task)
-            fake = root / "fake-opencode"
-            fake.write_text(
-                "#!/bin/sh\n"
-                "printf changed > target.txt\n"
-                "printf '%s\\n' '{\"sessionID\":\"session-1\",\"cost\":0.25,"
-                "\"tokens\":{\"input\":4,\"output\":2}}'\n",
-                encoding="utf-8",
+            fake = write_fake_opencode(
+                root,
+                "import json\n"
+                "from pathlib import Path\n"
+                "Path('target.txt').write_text('changed')\n"
+                "print(json.dumps({'sessionID': 'session-1', 'cost': 0.25, "
+                "'tokens': {'input': 4, 'output': 2}}))\n",
             )
-            fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
             output = root / "attempt-001"
             result = subprocess.run(
                 [
@@ -106,19 +130,19 @@ class DelegateRunnerTests(unittest.TestCase):
             self.assertEqual(payload["usage"]["observed_cost_total"], 0.25)
 
     def test_fails_when_worker_changes_disallowed_path(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/mnt/d/CodexTemp/WSL") as temporary:
+        with temporary_directory() as temporary:
             root = Path(temporary)
             work = root / "work"
             work.mkdir()
             (work / "target.txt").write_text("before", encoding="utf-8")
             task = root / "task.json"
             write_task(task)
-            fake = root / "fake-opencode"
-            fake.write_text(
-                "#!/bin/sh\nprintf changed > target.txt\nprintf bad > outside.txt\n",
-                encoding="utf-8",
+            fake = write_fake_opencode(
+                root,
+                "from pathlib import Path\n"
+                "Path('target.txt').write_text('changed')\n"
+                "Path('outside.txt').write_text('bad')\n",
             )
-            fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
             output = root / "attempt-001"
             result = subprocess.run(
                 [
@@ -143,20 +167,20 @@ class DelegateRunnerTests(unittest.TestCase):
             self.assertEqual(payload["unauthorized_changes"], ["outside.txt"])
 
     def test_ignores_python_cache_artifacts(self) -> None:
-        with tempfile.TemporaryDirectory(dir="/mnt/d/CodexTemp/WSL") as temporary:
+        with temporary_directory() as temporary:
             root = Path(temporary)
             work = root / "work"
             work.mkdir()
             (work / "target.txt").write_text("before", encoding="utf-8")
             task = root / "task.json"
             write_task(task)
-            fake = root / "fake-opencode"
-            fake.write_text(
-                "#!/bin/sh\nprintf changed > target.txt\n"
-                "mkdir __pycache__\nprintf cache > __pycache__/generated.pyc\n",
-                encoding="utf-8",
+            fake = write_fake_opencode(
+                root,
+                "from pathlib import Path\n"
+                "Path('target.txt').write_text('changed')\n"
+                "Path('__pycache__').mkdir()\n"
+                "Path('__pycache__/generated.pyc').write_text('cache')\n",
             )
-            fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
             output = root / "attempt-001"
             result = subprocess.run(
                 [
