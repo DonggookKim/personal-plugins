@@ -142,6 +142,43 @@ class DelegateRunnerTests(unittest.TestCase):
             payload = json.loads((output / "result.json").read_text(encoding="utf-8"))
             self.assertEqual(payload["unauthorized_changes"], ["outside.txt"])
 
+    def test_ignores_python_cache_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory(dir="/mnt/d/CodexTemp/WSL") as temporary:
+            root = Path(temporary)
+            work = root / "work"
+            work.mkdir()
+            (work / "target.txt").write_text("before", encoding="utf-8")
+            task = root / "task.json"
+            write_task(task)
+            fake = root / "fake-opencode"
+            fake.write_text(
+                "#!/bin/sh\nprintf changed > target.txt\n"
+                "mkdir __pycache__\nprintf cache > __pycache__/generated.pyc\n",
+                encoding="utf-8",
+            )
+            fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
+            output = root / "attempt-001"
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(RUNNER),
+                    "--cwd",
+                    str(work),
+                    "--task-file",
+                    str(task),
+                    "--output-dir",
+                    str(output),
+                    "--opencode-bin",
+                    str(fake),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads((output / "result.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["changed_files"], ["target.txt"])
+
 
 if __name__ == "__main__":
     unittest.main()

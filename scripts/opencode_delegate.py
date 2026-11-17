@@ -132,9 +132,12 @@ def git_state(cwd: Path) -> dict[str, Any] | None:
 
 def file_snapshot(root: Path) -> dict[str, str]:
     snapshot: dict[str, str] = {}
+    ignored_directories = {".git", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache"}
     for base, dirs, files in os.walk(root):
-        dirs[:] = sorted(name for name in dirs if name != ".git")
+        dirs[:] = sorted(name for name in dirs if name not in ignored_directories)
         for name in sorted(files):
+            if name.endswith((".pyc", ".pyo")):
+                continue
             path = Path(base) / name
             relative = path.relative_to(root).as_posix()
             try:
@@ -158,7 +161,7 @@ def changed_files(before: dict[str, str], after: dict[str, str]) -> list[str]:
 
 
 def path_is_allowed(path: str, rules: list[str]) -> bool:
-    normalized = Path(path).as_posix().lstrip("./")
+    normalized = Path(path).as_posix()
     for rule in rules:
         prefix = Path(rule).as_posix().strip("/")
         if normalized == prefix or normalized.startswith(prefix + "/"):

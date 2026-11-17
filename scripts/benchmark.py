@@ -131,6 +131,8 @@ def main() -> int:
     manifest = json.loads((work / "manifest.json").read_text(encoding="utf-8"))
     if manifest["model_id"] != model_id or manifest["case"] != args.case:
         parser.error("manifest does not match the selected case/model")
+    if hashlib.sha256((work / "prompt.md").read_bytes()).hexdigest() != manifest["prompt_sha256"]:
+        parser.error("prompt.md changed after preparation; create a fresh benchmark workspace")
     if hashlib.sha256((work / "task.json").read_bytes()).hexdigest() != manifest["task_sha256"]:
         parser.error("task.json changed after preparation; create a fresh benchmark workspace")
 
@@ -152,9 +154,16 @@ def main() -> int:
         if args.opencode_bin:
             command.extend(["--opencode-bin", args.opencode_bin])
         if args.action == "dry-run":
+            if hashlib.sha256((work / "score_detector.py").read_bytes()).hexdigest() != manifest["baseline_sha256"]:
+                parser.error("starter changed before dry-run; create a fresh benchmark workspace")
             command.append("--dry-run")
         else:
             attempt = next_attempt(args.case, args.model)
+            if attempt.name == "001" and (
+                hashlib.sha256((work / "score_detector.py").read_bytes()).hexdigest()
+                != manifest["baseline_sha256"]
+            ):
+                parser.error("starter changed before first execution; create a fresh workspace")
             command.extend(["--output-dir", str(attempt), "--auto"])
             print(f"Running {args.model} in {work}; logs: {attempt}")
             print("API fees and external tools may apply.")
